@@ -20,15 +20,14 @@ class RobotParser:
         Normalize variable name to Robot-style scalar form if possible.
 
         Examples:
-            "${USER}" -> "USER"
-            "@{LIST}" -> "LIST"
-            "&{DICT}" -> "DICT"
+            "${USER}" -> "${USER}" (kept as-is for consistency)
+            "@{LIST}" -> "@{LIST}"
+            "&{DICT}" -> "&{DICT}"
         """
         if not name:
             return name
         name = name.strip()
         # Keep original token style (${...}, @{...}, &{...}) for DB storage as seen in current model usage.
-        # However, when we detect assignments like ${x}=, tokens usually already contain ${..}
         return name
 
     def _extract_file_level_variables(self, model) -> List[Dict[str, Any]]:
@@ -69,13 +68,14 @@ class RobotParser:
         return bool(re.match(r"^(\$\{[^\}]+\}|\@\{[^\}]+\}|\&\{[^\}]+\})\s*=$", s))
 
     def _collect_tokens_text(self, node) -> List[str]:
-        """Return list of textual values for tokens of a node."""
+        """Return list of non-empty textual values for tokens of a node, excluding pure whitespace."""
         toks: List[str] = []
         for t in getattr(node, "tokens", []) or []:
             try:
                 # token.value may be attribute
                 val = str(getattr(t, "value", "") or "")
-                if val:
+                # Skip empty tokens and pure whitespace/separator tokens
+                if val and val.strip():
                     toks.append(val)
             except Exception:
                 pass
@@ -98,6 +98,9 @@ class RobotParser:
 
         for step in testcase_node.body:
             # Only look into keyword calls and similar executable rows
+            if not hasattr(step, "type") or step.type != "KEYWORD":
+                continue
+                
             tokens_text = self._collect_tokens_text(step)
             if not tokens_text:
                 continue
@@ -106,12 +109,17 @@ class RobotParser:
             first = tokens_text[0].strip()
             if self._is_assignment_token(first):
                 # Extract ${x} from "${x}="
-                var_name = first.split("=")[0].strip()
-                # Try to capture some default from remaining tokens if obvious (next token often keyword name)
+                var_name = first.rstrip("=").strip()
+                # Try to capture default value if available
                 default_val = None
-                if len(tokens_text) > 1:
-                    # Heuristic: if next token is not a keyword name? Hard to tell. Keep None to avoid misleading.
-                    default_val = None
+                # The pattern is typically: ${var}=  Keyword  value...
+                # So if there are more than 2 tokens, the third might be the value
+                if len(tokens_text) > 2:
+                    # Check if it's "Set Variable" keyword
+                    if len(tokens_text) >= 2 and "set variable" in tokens_text[1].lower():
+                        if len(tokens_text) > 2:
+                            default_val = tokens_text[2].strip()
+                
                 vars_found[var_name] = {
                     "name": var_name,
                     "default_value": default_val,
@@ -135,12 +143,6 @@ class RobotParser:
                         "default_value": default_val,
                         "description": f"Set via '{first}' keyword in testcase",
                     }
-
-            # 3) Also consider 'Set Variable' which returns a value to assignment usually, but sometimes used without lhs
-            # Example: ${x}=  Set Variable  1
-            # Already captured by assignment branch. If used without LHS it's just a keyword; ignore.
-
-            # 4) Environment: If variable is used but never assigned, we don't record as input to avoid noise.
 
         return list(vars_found.values())
 
