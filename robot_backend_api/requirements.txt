@@ -23,6 +23,7 @@ pluggy==1.5.0
 pycodestyle==2.13.0
 pydantic==2.11.3
 pydantic_core==2.33.1
+pydantic-settings==2.7.1
 pyflakes==3.3.2
 Pygments==2.19.1
 pytest==8.3.5
@@ -41,3 +42,14 @@ uvicorn==0.34.0
 uvloop==0.21.0
 watchfiles==1.0.5
 websockets==15.0.1
+
+# Robot Framework dependencies
+robotframework==7.1.1
+
+# MinIO storage client
+minio==7.2.11
+
+# Database dependencies
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+alembic==1.14.0
