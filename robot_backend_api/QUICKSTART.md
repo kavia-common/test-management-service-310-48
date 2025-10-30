@@ -14,11 +14,13 @@ cp .env.example .env
 
 # Edit .env and set your values
 # Required variables:
-# - DATABASE_URL
+# - DATABASE_URL (PostgreSQL connection string)
 # - MINIO_ENDPOINT
 # - MINIO_ACCESS_KEY
 # - MINIO_SECRET_KEY
 ```
+
+**Note:** Database tables are created automatically on first startup. No manual schema setup required!
 
 ### Step 3: Run the Application
 ```bash

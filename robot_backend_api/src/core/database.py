@@ -45,5 +45,28 @@ def init_db() -> None:
     """
     Initialize database by creating all tables.
     Should be called on application startup.
+    
+    This function:
+    - Imports all model modules to ensure they're registered with Base
+    - Creates all tables using SQLAlchemy metadata.create_all
+    - Is idempotent (safe to call multiple times)
+    - Logs errors gracefully without crashing the application
     """
-    Base.metadata.create_all(bind=engine)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Import all models to register them with Base.metadata
+        # This must be done before create_all is called
+        logger.info("Importing all models...")
+        from models import test_file, testcase, run, run_config, input_variable  # noqa: F401
+        
+        logger.info("Creating database tables...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully (or already exist)")
+        
+    except Exception as e:
+        # Log the error but don't crash the application
+        # This allows the server to start even if DB is temporarily unavailable
+        logger.error(f"Failed to initialize database: {e}")
+        logger.warning("Application will continue but database operations may fail")

@@ -37,6 +37,28 @@ cp .env.example .env
    - `MINIO_ACCESS_KEY`: MinIO access key
    - `MINIO_SECRET_KEY`: MinIO secret key
 
+## Database Setup
+
+### Automatic Table Creation
+
+The application automatically creates all required database tables on startup using SQLAlchemy's `Base.metadata.create_all()`. This bootstrap process:
+
+- **Runs automatically** when the application starts
+- **Is idempotent** - safe to run multiple times (won't modify existing tables)
+- **Handles errors gracefully** - app will start even if database is temporarily unavailable
+- **Creates 5 tables**: `test_files`, `testcases`, `runs`, `run_configs`, `input_variables`
+
+No manual database initialization is required. Simply ensure your PostgreSQL database exists and is accessible via the `DATABASE_URL` environment variable.
+
+For more details, see [DB_BOOTSTRAP.md](DB_BOOTSTRAP.md).
+
+### Manual Verification
+
+To verify the database bootstrap implementation:
+```bash
+python3 verify_db_bootstrap.py
+```
+
 ## Running the Application
 
 ### Option 1: Using the Python runner script (Recommended)
