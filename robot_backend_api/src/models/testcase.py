@@ -3,7 +3,7 @@ Database model for individual test cases within robot test files.
 """
 from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
-from ..core.database import Base
+from core.database import Base
 
 
 class TestCase(Base):

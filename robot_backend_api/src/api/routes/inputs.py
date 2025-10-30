@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from ...core.database import get_db
-from ...schemas.input_variable import InputVariableResponse
-from ...crud import input_variable as crud_input_variable
-from ...crud import test_file as crud_test_file
-from ...crud import testcase as crud_testcase
+from core.database import get_db
+from schemas.input_variable import InputVariableResponse
+from crud import input_variable as crud_input_variable
+from crud import test_file as crud_test_file
+from crud import testcase as crud_testcase
 
 router = APIRouter(prefix="/inputs", tags=["Input Variables"])
 

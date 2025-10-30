@@ -4,7 +4,7 @@ Pydantic schemas for test run API requests and responses.
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, Dict, Any
-from ..models.run import RunStatus
+from models.run import RunStatus
 
 
 class RunBase(BaseModel):

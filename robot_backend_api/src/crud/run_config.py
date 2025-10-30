@@ -3,8 +3,8 @@ CRUD operations for run configurations.
 """
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from ..models.run_config import RunConfig
-from ..schemas.run_config import RunConfigCreate, RunConfigUpdate
+from models.run_config import RunConfig
+from schemas.run_config import RunConfigCreate, RunConfigUpdate
 
 
 # PUBLIC_INTERFACE

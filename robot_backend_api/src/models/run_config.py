@@ -4,7 +4,7 @@ Database model for test run configurations.
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from ..core.database import Base
+from core.database import Base
 
 
 class RunConfig(Base):

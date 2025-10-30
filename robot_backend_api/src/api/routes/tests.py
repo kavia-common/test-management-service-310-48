@@ -8,14 +8,14 @@ from typing import List
 import tempfile
 import os
 
-from ...core.database import get_db
-from ...schemas.test_file import TestFileResponse, TestFileDetailResponse, TestFileUpdate
-from ...crud import test_file as crud_test_file
-from ...crud import testcase as crud_testcase
-from ...crud import input_variable as crud_input_variable
-from ...services.robot_parser import robot_parser
-from ...services.storage_service import save_robot_file
-from ...core.storage import storage_service
+from core.database import get_db
+from schemas.test_file import TestFileResponse, TestFileDetailResponse, TestFileUpdate
+from crud import test_file as crud_test_file
+from crud import testcase as crud_testcase
+from crud import input_variable as crud_input_variable
+from services.robot_parser import robot_parser
+from services.storage_service import save_robot_file
+from core.storage import storage_service
 
 router = APIRouter(prefix="/tests", tags=["Test Files"])
 
@@ -71,7 +71,7 @@ async def upload_test_file(
         testcases, variables = robot_parser.parse_file(tmp_file_path)
         
         # Create test file record first (without storage_path)
-        from ...schemas.test_file import TestFileCreate
+        from schemas.test_file import TestFileCreate
         test_file_create = TestFileCreate(name=file.filename, description=None)
         db_test_file = crud_test_file.create_test_file(
             db,

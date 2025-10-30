@@ -134,5 +134,25 @@ class StorageService:
             return None
 
 
-# Global storage service instance
-storage_service = StorageService()
+# Global storage service instance - will be initialized lazily
+_storage_service = None
+
+
+def get_storage_service() -> StorageService:
+    """
+    Get or create the global storage service instance.
+    Lazy initialization to avoid connection during import.
+    """
+    global _storage_service
+    if _storage_service is None:
+        _storage_service = StorageService()
+    return _storage_service
+
+
+# For backward compatibility, create property-like access
+class _StorageServiceProxy:
+    def __getattr__(self, name):
+        return getattr(get_storage_service(), name)
+
+
+storage_service = _StorageServiceProxy()

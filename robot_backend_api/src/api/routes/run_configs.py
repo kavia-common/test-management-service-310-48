@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from ...core.database import get_db
-from ...schemas.run_config import RunConfigResponse, RunConfigCreate, RunConfigUpdate
-from ...crud import run_config as crud_run_config
+from core.database import get_db
+from schemas.run_config import RunConfigResponse, RunConfigCreate, RunConfigUpdate
+from crud import run_config as crud_run_config
 
 router = APIRouter(prefix="/run-configs", tags=["Run Configurations"])
 

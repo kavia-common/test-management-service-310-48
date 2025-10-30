@@ -3,8 +3,8 @@ CRUD operations for test files.
 """
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from ..models.test_file import TestFile
-from ..schemas.test_file import TestFileCreate, TestFileUpdate
+from models.test_file import TestFile
+from schemas.test_file import TestFileCreate, TestFileUpdate
 
 
 # PUBLIC_INTERFACE

@@ -3,6 +3,10 @@ Core configuration module for the Robot Framework Test Management API.
 Loads settings from environment variables.
 """
 from pydantic_settings import BaseSettings
+from pathlib import Path
+
+# Get the project root directory (2 levels up from this file)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -37,8 +41,9 @@ class Settings(BaseSettings):
     robot_execution_timeout: int = 300  # 5 minutes default
     
     class Config:
-        env_file = ".env"
+        env_file = str(PROJECT_ROOT / ".env")
         case_sensitive = False
+        extra = "ignore"
 
 
 # Global settings instance

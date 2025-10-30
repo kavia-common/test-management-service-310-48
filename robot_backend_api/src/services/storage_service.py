@@ -1,7 +1,7 @@
 """
 Storage service wrapper providing convenience methods for robot test management.
 """
-from ..core.storage import storage_service
+from core.storage import storage_service
 import logging
 
 logger = logging.getLogger(__name__)

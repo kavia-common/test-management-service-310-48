@@ -5,10 +5,10 @@ Provides endpoints for retrieving testcases from robot test files.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ...core.database import get_db
-from ...schemas.testcase import TestCaseListResponse
-from ...crud import testcase as crud_testcase
-from ...crud import test_file as crud_test_file
+from core.database import get_db
+from schemas.testcase import TestCaseListResponse
+from crud import testcase as crud_testcase
+from crud import test_file as crud_test_file
 
 router = APIRouter(prefix="/tests", tags=["Test Cases"])
 

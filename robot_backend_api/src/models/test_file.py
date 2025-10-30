@@ -4,7 +4,7 @@ Database model for Robot Framework test files.
 from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from ..core.database import Base
+from core.database import Base
 
 
 class TestFile(Base):

@@ -4,8 +4,8 @@ CRUD operations for test runs.
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
-from ..models.run import Run, RunStatus
-from ..schemas.run import RunCreate
+from models.run import Run, RunStatus
+from schemas.run import RunCreate
 
 
 # PUBLIC_INTERFACE

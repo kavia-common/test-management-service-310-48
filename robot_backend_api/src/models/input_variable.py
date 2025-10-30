@@ -3,7 +3,7 @@ Database model for input variables extracted from robot test files.
 """
 from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from ..core.database import Base
+from core.database import Base
 
 
 class InputVariable(Base):

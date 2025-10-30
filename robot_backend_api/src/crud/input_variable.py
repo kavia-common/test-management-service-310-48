@@ -3,7 +3,7 @@ CRUD operations for input variables.
 """
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from ..models.input_variable import InputVariable
+from models.input_variable import InputVariable
 
 
 # PUBLIC_INTERFACE

@@ -10,9 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from ..core.config import settings
-from ..core.database import init_db
-from .routes import tests, testcases, runs, run_configs, inputs
+from core.config import settings
+from core.database import init_db
+from api.routes import tests, testcases, runs, run_configs, inputs
 
 # Configure logging
 logging.basicConfig(

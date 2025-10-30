@@ -9,19 +9,19 @@ import tempfile
 import os
 import shutil
 
-from ...core.database import get_db
-from ...schemas.run import (
+from core.database import get_db
+from schemas.run import (
     RunResponse, RunCreate, RunTestCaseRequest,
     RunQueueExecuteRequest, RunLogsResponse
 )
-from ...models.run import RunStatus
-from ...crud import run as crud_run
-from ...crud import test_file as crud_test_file
-from ...crud import testcase as crud_testcase
-from ...crud import run_config as crud_run_config
-from ...services.robot_executor import robot_executor
-from ...services.storage_service import save_run_artifact
-from ...core.storage import storage_service
+from models.run import RunStatus
+from crud import run as crud_run
+from crud import test_file as crud_test_file
+from crud import testcase as crud_testcase
+from crud import run_config as crud_run_config
+from services.robot_executor import robot_executor
+from services.storage_service import save_run_artifact
+from core.storage import storage_service
 
 router = APIRouter(prefix="/runs", tags=["Test Runs"])
 
@@ -41,7 +41,7 @@ def execute_test_run(run_id: int, robot_file_path: str, testcase_name: Optional[
         exclude_tags: Tags to exclude
         timeout: Execution timeout
     """
-    from ...core.database import SessionLocal
+    from core.database import SessionLocal
     
     db = SessionLocal()
     try:

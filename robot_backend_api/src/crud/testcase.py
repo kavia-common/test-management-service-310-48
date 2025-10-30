@@ -3,8 +3,8 @@ CRUD operations for testcases.
 """
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from ..models.testcase import TestCase
-from ..schemas.testcase import TestCaseCreate
+from models.testcase import TestCase
+from schemas.testcase import TestCaseCreate
 
 
 # PUBLIC_INTERFACE

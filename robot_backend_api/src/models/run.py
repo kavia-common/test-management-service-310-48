@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from enum import Enum
-from ..core.database import Base
+from core.database import Base
 
 
 class RunStatus(str, Enum):
