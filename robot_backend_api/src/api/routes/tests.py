@@ -4,7 +4,7 @@ Provides endpoints for uploading, managing, and retrieving robot test files.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict
 import tempfile
 import os
 
@@ -67,9 +67,15 @@ async def upload_test_file(
                 detail="Invalid robot test file"
             )
         
-        # Parse testcases and variables
-        testcases, variables = robot_parser.parse_file(tmp_file_path)
-        
+        # Parse testcases and variables (now returns 3-tuple)
+        parsed = robot_parser.parse_file(tmp_file_path)
+        if isinstance(parsed, tuple) and len(parsed) == 3:
+            testcases, file_level_variables, testcase_level_variables = parsed
+        else:
+            # Backward compatibility (should not happen after parser update)
+            testcases, file_level_variables = parsed  # type: ignore
+            testcase_level_variables = {}
+
         # Create test file record first (without storage_path)
         from schemas.test_file import TestFileCreate
         test_file_create = TestFileCreate(name=file.filename, description=None)
@@ -87,11 +93,19 @@ async def upload_test_file(
         db.commit()
         db.refresh(db_test_file)
         
-        # Create testcases
-        crud_testcase.create_testcases_bulk(db, testcases, db_test_file.id)
-        
-        # Create variables
-        crud_input_variable.create_variables_bulk(db, variables, db_test_file.id)
+        # Create testcases, then build name->id map
+        created_tcs = crud_testcase.create_testcases_bulk(db, testcases, db_test_file.id)
+        name_to_id: Dict[str, int] = {tc.name: tc.id for tc in created_tcs}
+
+        # Create file-level variables (no testcase_id)
+        if file_level_variables:
+            crud_input_variable.create_variables_bulk(db, file_level_variables, db_test_file.id)
+
+        # Create testcase-level variables with testcase_id mapping
+        for tc_name, vars_list in (testcase_level_variables or {}).items():
+            tc_id = name_to_id.get(tc_name)
+            if tc_id and vars_list:
+                crud_input_variable.create_variables_bulk(db, vars_list, db_test_file.id, testcase_id=tc_id)
         
         # Return response
         response = TestFileDetailResponse(

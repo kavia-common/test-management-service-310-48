@@ -18,7 +18,7 @@ router = APIRouter(prefix="/inputs", tags=["Input Variables"])
 # PUBLIC_INTERFACE
 @router.get("/{test_file_id}", response_model=List[InputVariableResponse],
             summary="Get variables for a test file",
-            description="Retrieve all file-level variables from a robot test file.")
+            description="Retrieve all file-level variables from a robot test file. Variables with testcase_id are excluded here.")
 async def get_test_file_variables(
     test_file_id: int,
     db: Session = Depends(get_db)
