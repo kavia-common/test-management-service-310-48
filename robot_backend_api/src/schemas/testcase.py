@@ -3,6 +3,7 @@ Pydantic schemas for testcase API requests and responses.
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from uuid import UUID
 
 
 class TestCaseBase(BaseModel):
@@ -20,6 +21,7 @@ class TestCaseCreate(TestCaseBase):
 class TestCaseResponse(TestCaseBase):
     """Schema for testcase response."""
     id: int = Field(..., description="Test case ID")
+    testcase_uid: UUID = Field(..., description="Test case unique identifier (UUID)")
     test_file_id: int = Field(..., description="Parent test file ID")
     
     class Config:

@@ -2,8 +2,10 @@
 Database model for Robot Framework test files.
 """
 from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
+import uuid
 from core.database import Base
 
 
@@ -13,6 +15,7 @@ class TestFile(Base):
     
     Attributes:
         id: Primary key
+        test_uid: Unique identifier (UUID) for stable referencing
         name: Original filename
         description: Optional description
         storage_path: Path to file in MinIO storage
@@ -24,6 +27,7 @@ class TestFile(Base):
     __tablename__ = "test_files"
     
     id = Column(Integer, primary_key=True, index=True)
+    test_uid = Column(UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True)
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)
     storage_path = Column(String(500), nullable=False, unique=True)

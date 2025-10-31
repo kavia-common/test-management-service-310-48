@@ -4,6 +4,7 @@ Pydantic schemas for test file API requests and responses.
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 
 class TestFileBase(BaseModel):
@@ -26,6 +27,7 @@ class TestFileUpdate(BaseModel):
 class TestFileResponse(TestFileBase):
     """Schema for test file response."""
     id: int = Field(..., description="Test file ID")
+    test_uid: UUID = Field(..., description="Test file unique identifier (UUID)")
     storage_path: str = Field(..., description="Storage path in MinIO")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")

@@ -5,10 +5,11 @@ Provides endpoints for uploading, managing, and retrieving robot test files.
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 import tempfile
 import os
 import uuid
+import logging
 from urllib.parse import unquote
 
 from core.database import get_db
@@ -22,6 +23,42 @@ from core.storage import storage_service
 from robot_schema import get_required_variables_for_case
 
 router = APIRouter(prefix="/tests", tags=["Test Files"])
+logger = logging.getLogger(__name__)
+
+
+def _decode_robot_file_content(file_content_bytes: bytes, file_path: str = "") -> str:
+    """
+    Decode robot file content with robust encoding detection.
+    
+    Tries UTF-8 first, then uses charset-normalizer to detect encoding,
+    and falls back to UTF-8 with replacement as last resort.
+    
+    Args:
+        file_content_bytes: Raw file content bytes
+        file_path: Optional file path for logging
+        
+    Returns:
+        str: Decoded file content
+    """
+    # Try UTF-8 first (most common)
+    try:
+        return file_content_bytes.decode('utf-8')
+    except UnicodeDecodeError:
+        pass
+    
+    # Try charset-normalizer for automatic detection
+    try:
+        from charset_normalizer import from_bytes
+        result = from_bytes(file_content_bytes).best()
+        if result and result.encoding:
+            logger.info(f"Detected encoding {result.encoding} for file {file_path}")
+            return str(result)
+    except Exception as e:
+        logger.warning(f"charset-normalizer detection failed for {file_path}: {e}")
+    
+    # Last resort: UTF-8 with replacement
+    logger.warning(f"Using UTF-8 with replacement for {file_path}")
+    return file_content_bytes.decode('utf-8', errors='replace')
 
 
 # PUBLIC_INTERFACE
@@ -190,6 +227,7 @@ async def upload_test_file(
         # Return response
         response = TestFileDetailResponse(
             id=db_test_file.id,
+            test_uid=db_test_file.test_uid,
             name=db_test_file.name,
             description=db_test_file.description,
             storage_path=db_test_file.storage_path,
@@ -261,6 +299,7 @@ async def get_test_file(
     
     response = TestFileDetailResponse(
         id=db_test_file.id,
+        test_uid=db_test_file.test_uid,
         name=db_test_file.name,
         description=db_test_file.description,
         storage_path=db_test_file.storage_path,
@@ -338,13 +377,13 @@ async def delete_test_file(
 
 
 # PUBLIC_INTERFACE
-@router.get("/{test_id}/testcases/{case_name}/required-variables",
+@router.get("/{test_identifier}/testcases/{case_identifier}/required-variables",
             response_model=Dict[str, Any],
             summary="Get required variables for a test case",
-            description="Analyze a test case and return the list of required input variables.")
+            description="Analyze a test case and return the list of required input variables. Accepts both integer IDs and UUIDs for test and testcase identifiers.")
 async def get_testcase_required_variables(
-    test_id: int,
-    case_name: str,
+    test_identifier: Union[int, str],
+    case_identifier: Union[int, str],
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -356,42 +395,99 @@ async def get_testcase_required_variables(
     Variables that are assigned within the test case or its called keywords
     are excluded from the result.
     
+    Supports both legacy paths (with integer IDs and case names) and new paths
+    (with UUIDs). The test_identifier can be an integer test_id or a UUID test_uid.
+    The case_identifier can be an integer testcase_id, UUID testcase_uid, or case_name.
+    
     Args:
-        test_id: Test file ID
-        case_name: Name of the test case (URL-encoded if contains special characters)
+        test_identifier: Test file ID (int), test_uid (UUID string), or legacy test_id
+        case_identifier: Test case ID (int), testcase_uid (UUID string), or case_name (str)
         db: Database session
         
     Returns:
         Dict containing:
             - test_id: Test file ID
+            - test_uid: Test file UUID
+            - testcase_id: Test case ID (if resolved)
+            - testcase_uid: Test case UUID (if resolved)
             - case_name: Test case name
             - required_variables: List of required variable names
             
     Raises:
         HTTPException: 
-            - 400 if case_name is invalid
-            - 404 if test file not found or case_name not found in file
+            - 400 if identifiers are invalid
+            - 404 if test file or test case not found
             - 500 if analysis fails
     """
-    # Decode case_name in case it was URL-encoded
-    decoded_case_name = unquote(case_name)
+    # Resolve test file
+    db_test_file = None
     
-    # Validate inputs
-    if not decoded_case_name or not decoded_case_name.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid case_name parameter"
-        )
+    # Try to parse as UUID first
+    try:
+        from uuid import UUID
+        test_uid = UUID(str(test_identifier))
+        db_test_file = crud_test_file.get_test_file_by_uid(db, test_uid)
+    except (ValueError, TypeError):
+        # Not a UUID, try as integer ID
+        try:
+            test_id = int(test_identifier)
+            db_test_file = crud_test_file.get_test_file(db, test_id)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid test_identifier: must be an integer ID or UUID"
+            )
     
-    # Get test file from database
-    db_test_file = crud_test_file.get_test_file(db, test_id)
     if not db_test_file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Test file with id {test_id} not found"
+            detail=f"Test file with identifier {test_identifier} not found"
         )
     
-    # Retrieve robot file content from storage
+    # Resolve test case
+    db_testcase = None
+    case_name = None
+    
+    # Try to parse as UUID first
+    try:
+        from uuid import UUID
+        testcase_uid = UUID(str(case_identifier))
+        db_testcase = crud_testcase.get_testcase_by_uid(db, testcase_uid)
+        if db_testcase:
+            case_name = db_testcase.name
+            # Verify it belongs to the correct test file
+            if db_testcase.test_file_id != db_test_file.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Test case does not belong to the specified test file"
+                )
+    except (ValueError, TypeError):
+        # Not a UUID, try as integer ID
+        try:
+            testcase_id = int(case_identifier)
+            db_testcase = crud_testcase.get_testcase(db, testcase_id)
+            if db_testcase:
+                case_name = db_testcase.name
+                # Verify it belongs to the correct test file
+                if db_testcase.test_file_id != db_test_file.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Test case does not belong to the specified test file"
+                    )
+        except (ValueError, TypeError):
+            # Treat as case name (string)
+            case_name = unquote(str(case_identifier))
+            # Try to find by name
+            db_testcase = crud_testcase.get_testcase_by_name(db, db_test_file.id, case_name)
+    
+    # Validate case_name
+    if not case_name or not case_name.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid case_identifier parameter"
+        )
+    
+    # Retrieve robot file content from storage with robust encoding
     try:
         file_content_bytes = get_robot_file(db_test_file.storage_path)
         if file_content_bytes is None:
@@ -400,10 +496,13 @@ async def get_testcase_required_variables(
                 detail=f"Test file content not found in storage: {db_test_file.storage_path}"
             )
         
-        # Decode bytes to string
-        file_content = file_content_bytes.decode('utf-8')
+        # Decode with robust encoding detection
+        file_content = _decode_robot_file_content(file_content_bytes, db_test_file.storage_path)
         
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Failed to retrieve/decode test file content: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve test file content: {str(e)}"
@@ -413,9 +512,16 @@ async def get_testcase_required_variables(
     try:
         result = get_required_variables_for_case(
             content=file_content,
-            case_name=decoded_case_name,
-            test_id=test_id
+            case_name=case_name,
+            test_id=db_test_file.id
         )
+        
+        # Enhance result with additional identifiers
+        result["test_uid"] = str(db_test_file.test_uid)
+        if db_testcase:
+            result["testcase_id"] = db_testcase.id
+            result["testcase_uid"] = str(db_testcase.testcase_uid)
+        
         return result
         
     except ValueError as e:
@@ -425,7 +531,7 @@ async def get_testcase_required_variables(
             detail=str(e)
         )
     except Exception as e:
-        # Analysis failed
+        logger.error(f"Failed to analyze test case: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to analyze test case: {str(e)}"

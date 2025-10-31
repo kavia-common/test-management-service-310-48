@@ -3,6 +3,7 @@ CRUD operations for testcases.
 """
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from uuid import UUID
 from models.testcase import TestCase
 from schemas.testcase import TestCaseCreate
 
@@ -20,6 +21,40 @@ def get_testcase(db: Session, testcase_id: int) -> Optional[TestCase]:
         Optional[TestCase]: Test case if found, None otherwise
     """
     return db.query(TestCase).filter(TestCase.id == testcase_id).first()
+
+
+# PUBLIC_INTERFACE
+def get_testcase_by_uid(db: Session, testcase_uid: UUID) -> Optional[TestCase]:
+    """
+    Get a testcase by UUID.
+    
+    Args:
+        db: Database session
+        testcase_uid: Test case UUID
+        
+    Returns:
+        Optional[TestCase]: Test case if found, None otherwise
+    """
+    return db.query(TestCase).filter(TestCase.testcase_uid == testcase_uid).first()
+
+
+# PUBLIC_INTERFACE
+def get_testcase_by_name(db: Session, test_file_id: int, case_name: str) -> Optional[TestCase]:
+    """
+    Get a testcase by name within a test file.
+    
+    Args:
+        db: Database session
+        test_file_id: Test file ID
+        case_name: Test case name
+        
+    Returns:
+        Optional[TestCase]: Test case if found, None otherwise
+    """
+    return db.query(TestCase).filter(
+        TestCase.test_file_id == test_file_id,
+        TestCase.name == case_name
+    ).first()
 
 
 # PUBLIC_INTERFACE

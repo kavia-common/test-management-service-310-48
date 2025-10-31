@@ -2,7 +2,9 @@
 Database model for individual test cases within robot test files.
 """
 from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+import uuid
 from core.database import Base
 
 
@@ -12,6 +14,7 @@ class TestCase(Base):
     
     Attributes:
         id: Primary key
+        testcase_uid: Unique identifier (UUID) for stable referencing
         test_file_id: Foreign key to parent test file
         name: Test case name
         description: Test case description/documentation
@@ -22,6 +25,7 @@ class TestCase(Base):
     __tablename__ = "testcases"
     
     id = Column(Integer, primary_key=True, index=True)
+    testcase_uid = Column(UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True)
     test_file_id = Column(Integer, ForeignKey("test_files.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text, nullable=True)

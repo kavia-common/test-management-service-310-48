@@ -4,6 +4,7 @@ CRUD operations for test files.
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
+from uuid import UUID
 from models.test_file import TestFile
 from schemas.test_file import TestFileCreate, TestFileUpdate
 
@@ -21,6 +22,21 @@ def get_test_file(db: Session, test_file_id: int) -> Optional[TestFile]:
         Optional[TestFile]: Test file if found, None otherwise
     """
     return db.query(TestFile).filter(TestFile.id == test_file_id).first()
+
+
+# PUBLIC_INTERFACE
+def get_test_file_by_uid(db: Session, test_uid: UUID) -> Optional[TestFile]:
+    """
+    Get a test file by UUID.
+    
+    Args:
+        db: Database session
+        test_uid: Test file UUID
+        
+    Returns:
+        Optional[TestFile]: Test file if found, None otherwise
+    """
+    return db.query(TestFile).filter(TestFile.test_uid == test_uid).first()
 
 
 # PUBLIC_INTERFACE
