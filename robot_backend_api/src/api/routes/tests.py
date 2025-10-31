@@ -4,9 +4,11 @@ Provides endpoints for uploading, managing, and retrieving robot test files.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
 import tempfile
 import os
+import uuid
 
 from core.database import get_db
 from schemas.test_file import TestFileResponse, TestFileDetailResponse, TestFileUpdate
@@ -14,7 +16,7 @@ from crud import test_file as crud_test_file
 from crud import testcase as crud_testcase
 from crud import input_variable as crud_input_variable
 from services.robot_parser import robot_parser
-from services.storage_service import save_robot_file
+from services.storage_service import save_robot_file, generate_unique_storage_path
 from core.storage import storage_service
 
 router = APIRouter(prefix="/tests", tags=["Test Files"])
@@ -33,6 +35,8 @@ async def upload_test_file(
     
     Accepts a .robot file, validates it, parses testcases and variables,
     stores the file in MinIO, and creates database records.
+    
+    Handles duplicate storage paths by generating unique paths with UUID suffixes.
     
     Args:
         file: Uploaded robot test file
@@ -76,22 +80,96 @@ async def upload_test_file(
             testcases, file_level_variables = parsed  # type: ignore
             testcase_level_variables = {}
 
-        # Create test file record first (without storage_path)
+        # Strategy for handling duplicates:
+        # 1. Create test file record first with a temporary unique storage path using UUID
+        # 2. Upload to storage with actual ID
+        # 3. Update storage path
+        # 4. If collision still occurs (rare), retry with new UUID
+        
         from schemas.test_file import TestFileCreate
-        test_file_create = TestFileCreate(name=file.filename, description=None)
-        db_test_file = crud_test_file.create_test_file(
-            db,
-            test_file_create,
-            f"pending_{file.filename}"  # Temporary storage path
-        )
         
-        # Upload to storage with actual ID
-        storage_path = save_robot_file(file_content, db_test_file.id, file.filename)
+        max_retries = 3
+        db_test_file = None
         
-        # Update storage path
-        db_test_file.storage_path = storage_path
-        db.commit()
-        db.refresh(db_test_file)
+        for attempt in range(max_retries):
+            # Generate a unique temporary storage path
+            temp_storage_path = f"pending_{uuid.uuid4().hex[:12]}_{file.filename}"
+            
+            test_file_create = TestFileCreate(name=file.filename, description=None)
+            db_test_file = crud_test_file.create_test_file_safe(
+                db,
+                test_file_create,
+                temp_storage_path
+            )
+            
+            if db_test_file:
+                break
+            
+            # If we still get a duplicate (very unlikely), try again
+            if attempt == max_retries - 1:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create unique record after multiple attempts"
+                )
+        
+        if not db_test_file:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create test file record"
+            )
+        
+        # Now we have a DB record with an ID, generate the final storage path
+        # Check if a file with this final path already exists
+        final_storage_path = generate_unique_storage_path(db_test_file.id, file.filename, add_uuid=False)
+        existing_file = crud_test_file.get_test_file_by_storage_path(db, final_storage_path)
+        
+        if existing_file and existing_file.id != db_test_file.id:
+            # Path collision with another file, add UUID to make it unique
+            final_storage_path = generate_unique_storage_path(db_test_file.id, file.filename, add_uuid=True)
+        
+        # Upload to storage with the final path
+        try:
+            storage_path = save_robot_file(file_content, db_test_file.id, 
+                                         final_storage_path.split('/')[-1])
+        except Exception as e:
+            # Clean up database record if storage fails
+            crud_test_file.delete_test_file(db, db_test_file.id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload file to storage: {str(e)}"
+            )
+        
+        # Update storage path with retry logic for integrity errors
+        max_update_retries = 3
+        update_success = False
+        
+        for update_attempt in range(max_update_retries):
+            try:
+                db_test_file.storage_path = storage_path
+                db.commit()
+                db.refresh(db_test_file)
+                update_success = True
+                break
+            except IntegrityError:
+                db.rollback()
+                # Generate a new unique path and try again
+                storage_path = save_robot_file(
+                    file_content, 
+                    db_test_file.id, 
+                    generate_unique_storage_path(db_test_file.id, file.filename, add_uuid=True).split('/')[-1]
+                )
+        
+        if not update_success:
+            # Clean up database and storage
+            crud_test_file.delete_test_file(db, db_test_file.id)
+            try:
+                storage_service.delete_file(storage_path)
+            except:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update storage path after multiple attempts"
+            )
         
         # Create testcases, then build name->id map
         created_tcs = crud_testcase.create_testcases_bulk(db, testcases, db_test_file.id)

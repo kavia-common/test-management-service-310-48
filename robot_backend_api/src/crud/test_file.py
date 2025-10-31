@@ -2,6 +2,7 @@
 CRUD operations for test files.
 """
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from models.test_file import TestFile
 from schemas.test_file import TestFileCreate, TestFileUpdate
@@ -20,6 +21,21 @@ def get_test_file(db: Session, test_file_id: int) -> Optional[TestFile]:
         Optional[TestFile]: Test file if found, None otherwise
     """
     return db.query(TestFile).filter(TestFile.id == test_file_id).first()
+
+
+# PUBLIC_INTERFACE
+def get_test_file_by_storage_path(db: Session, storage_path: str) -> Optional[TestFile]:
+    """
+    Get a test file by storage path.
+    
+    Args:
+        db: Database session
+        storage_path: Storage path to search for
+        
+    Returns:
+        Optional[TestFile]: Test file if found, None otherwise
+    """
+    return db.query(TestFile).filter(TestFile.storage_path == storage_path).first()
 
 
 # PUBLIC_INTERFACE
@@ -60,6 +76,27 @@ def create_test_file(db: Session, test_file: TestFileCreate, storage_path: str) 
     db.commit()
     db.refresh(db_test_file)
     return db_test_file
+
+
+# PUBLIC_INTERFACE
+def create_test_file_safe(db: Session, test_file: TestFileCreate, storage_path: str) -> Optional[TestFile]:
+    """
+    Create a new test file record with duplicate handling.
+    Returns None if a duplicate storage_path exists.
+    
+    Args:
+        db: Database session
+        test_file: Test file creation data
+        storage_path: Path to file in storage
+        
+    Returns:
+        Optional[TestFile]: Created test file or None if duplicate exists
+    """
+    try:
+        return create_test_file(db, test_file, storage_path)
+    except IntegrityError:
+        db.rollback()
+        return None
 
 
 # PUBLIC_INTERFACE

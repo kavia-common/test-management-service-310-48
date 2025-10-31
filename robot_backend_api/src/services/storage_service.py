@@ -3,8 +3,34 @@ Storage service wrapper providing convenience methods for robot test management.
 """
 from core.storage import storage_service
 import logging
+import uuid
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+# PUBLIC_INTERFACE
+def generate_unique_storage_path(test_file_id: int, filename: str, add_uuid: bool = False) -> str:
+    """
+    Generate a storage path for a robot test file.
+    
+    Args:
+        test_file_id: Test file ID
+        filename: Original filename
+        add_uuid: Whether to add a UUID suffix for uniqueness
+        
+    Returns:
+        str: Storage path
+    """
+    if add_uuid:
+        # Add UUID before the file extension
+        file_path = Path(filename)
+        stem = file_path.stem
+        suffix = file_path.suffix
+        unique_filename = f"{stem}_{uuid.uuid4().hex[:8]}{suffix}"
+        return f"robot_files/{test_file_id}/{unique_filename}"
+    else:
+        return f"robot_files/{test_file_id}/{filename}"
 
 
 # PUBLIC_INTERFACE
