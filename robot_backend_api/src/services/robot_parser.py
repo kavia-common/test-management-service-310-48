@@ -2,7 +2,7 @@
 Service for parsing Robot Framework test files to extract testcases and variables.
 """
 from robot.parsing import get_model
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Set
 import logging
 import re
 
@@ -67,6 +67,15 @@ class RobotParser:
         # Match patterns like ${X}=, @{L}=, &{D}=
         return bool(re.match(r"^(\$\{[^\}]+\}|\@\{[^\}]+\}|\&\{[^\}]+\})\s*=$", s))
 
+    def _extract_variables_from_text(self, text: str) -> Set[str]:
+        """Extract variable references from text using regex."""
+        if not text:
+            return set()
+        # Match ${VAR}, @{LIST}, &{DICT}
+        pattern = r'(\$\{[^\}]+\}|\@\{[^\}]+\}|\&\{[^\}]+\})'
+        matches = re.findall(pattern, text)
+        return set(matches)
+
     def _collect_tokens_text(self, node) -> List[str]:
         """Return list of non-empty textual values for tokens of a node, excluding pure whitespace."""
         toks: List[str] = []
@@ -90,11 +99,14 @@ class RobotParser:
           2) Detect Set Test Variable keyword calls: 'Set Test Variable  ${var}  value'
           3) Detect Set Suite Variable / Set Global Variable as well (treated as inputs; scope may be broader)
           4) Detect Return values assigned: same as (1) since Robot uses '${x}=  Keyword'
+          5) Extract variables referenced in arguments and strings
         """
         vars_found: Dict[str, Dict[str, Any]] = {}
 
         if not hasattr(testcase_node, "body"):
             return []
+
+        logger.debug(f"Extracting variables from testcase: {getattr(testcase_node, 'name', 'Unknown')}")
 
         for step in testcase_node.body:
             # Only look into keyword calls and similar executable rows
@@ -104,6 +116,8 @@ class RobotParser:
             tokens_text = self._collect_tokens_text(step)
             if not tokens_text:
                 continue
+
+            logger.debug(f"  Processing step tokens: {tokens_text}")
 
             # 1) Direct assignment like ${x}=
             first = tokens_text[0].strip()
@@ -120,11 +134,13 @@ class RobotParser:
                         if len(tokens_text) > 2:
                             default_val = tokens_text[2].strip()
                 
-                vars_found[var_name] = {
-                    "name": var_name,
-                    "default_value": default_val,
-                    "description": "Assigned from keyword return in testcase",
-                }
+                if var_name not in vars_found:
+                    vars_found[var_name] = {
+                        "name": var_name,
+                        "default_value": default_val,
+                        "description": "Assigned from keyword return in testcase",
+                    }
+                    logger.debug(f"    Found assignment: {var_name} = {default_val}")
 
             # 2) Keywords that set variables
             # Normalize keyword name (robot is case-insensitive)
@@ -138,12 +154,34 @@ class RobotParser:
                     if len(tokens_text) >= 3:
                         # take the next arg as default if present
                         default_val = tokens_text[2].strip()
-                    vars_found[var_token] = {
-                        "name": var_token,
-                        "default_value": default_val,
-                        "description": f"Set via '{first}' keyword in testcase",
-                    }
+                    if var_token not in vars_found:
+                        vars_found[var_token] = {
+                            "name": var_token,
+                            "default_value": default_val,
+                            "description": f"Set via '{first}' keyword in testcase",
+                        }
+                        logger.debug(f"    Found variable setter: {var_token} = {default_val}")
 
+            # 3) Extract variables from all tokens (used but not necessarily assigned)
+            for token in tokens_text:
+                extracted_vars = self._extract_variables_from_text(token)
+                for var in extracted_vars:
+                    if var not in vars_found:
+                        # Only add if it's not a system variable (starts with specific patterns)
+                        var_lower = var.lower()
+                        # Skip common built-in variables
+                        skip_vars = {'${curdir}', '${tempdir}', '${execdir}', '${/}', '${:}', 
+                                     '${space}', '${empty}', '${true}', '${false}', '${null}',
+                                     '${test name}', '${test status}', '${suite name}'}
+                        if var_lower not in skip_vars:
+                            vars_found[var] = {
+                                "name": var,
+                                "default_value": None,
+                                "description": "Referenced in testcase (usage detected)",
+                            }
+                            logger.debug(f"    Found variable reference: {var}")
+
+        logger.debug(f"  Total variables found: {len(vars_found)}")
         return list(vars_found.values())
 
     # PUBLIC_INTERFACE
