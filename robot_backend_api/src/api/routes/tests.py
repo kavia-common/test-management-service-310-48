@@ -5,10 +5,11 @@ Provides endpoints for uploading, managing, and retrieving robot test files.
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from typing import List, Dict
+from typing import List, Dict, Any
 import tempfile
 import os
 import uuid
+from urllib.parse import unquote
 
 from core.database import get_db
 from schemas.test_file import TestFileResponse, TestFileDetailResponse, TestFileUpdate
@@ -16,8 +17,9 @@ from crud import test_file as crud_test_file
 from crud import testcase as crud_testcase
 from crud import input_variable as crud_input_variable
 from services.robot_parser import robot_parser
-from services.storage_service import save_robot_file, generate_unique_storage_path
+from services.storage_service import save_robot_file, generate_unique_storage_path, get_robot_file
 from core.storage import storage_service
+from robot_schema import get_required_variables_for_case
 
 router = APIRouter(prefix="/tests", tags=["Test Files"])
 
@@ -333,3 +335,98 @@ async def delete_test_file(
     crud_test_file.delete_test_file(db, test_file_id)
     
     return None
+
+
+# PUBLIC_INTERFACE
+@router.get("/{test_id}/testcases/{case_name}/required-variables",
+            response_model=Dict[str, Any],
+            summary="Get required variables for a test case",
+            description="Analyze a test case and return the list of required input variables.")
+async def get_testcase_required_variables(
+    test_id: int,
+    case_name: str,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get required variables for a specific test case.
+    
+    This endpoint retrieves the robot file content, parses it, and analyzes
+    the specified test case to determine which variables are required as inputs.
+    
+    Variables that are assigned within the test case or its called keywords
+    are excluded from the result.
+    
+    Args:
+        test_id: Test file ID
+        case_name: Name of the test case (URL-encoded if contains special characters)
+        db: Database session
+        
+    Returns:
+        Dict containing:
+            - test_id: Test file ID
+            - case_name: Test case name
+            - required_variables: List of required variable names
+            
+    Raises:
+        HTTPException: 
+            - 400 if case_name is invalid
+            - 404 if test file not found or case_name not found in file
+            - 500 if analysis fails
+    """
+    # Decode case_name in case it was URL-encoded
+    decoded_case_name = unquote(case_name)
+    
+    # Validate inputs
+    if not decoded_case_name or not decoded_case_name.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid case_name parameter"
+        )
+    
+    # Get test file from database
+    db_test_file = crud_test_file.get_test_file(db, test_id)
+    if not db_test_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Test file with id {test_id} not found"
+        )
+    
+    # Retrieve robot file content from storage
+    try:
+        file_content_bytes = get_robot_file(db_test_file.storage_path)
+        if file_content_bytes is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Test file content not found in storage: {db_test_file.storage_path}"
+            )
+        
+        # Decode bytes to string
+        file_content = file_content_bytes.decode('utf-8')
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve test file content: {str(e)}"
+        )
+    
+    # Analyze the test case for required variables
+    try:
+        result = get_required_variables_for_case(
+            content=file_content,
+            case_name=decoded_case_name,
+            test_id=test_id
+        )
+        return result
+        
+    except ValueError as e:
+        # Test case not found
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        # Analysis failed
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to analyze test case: {str(e)}"
+        )
