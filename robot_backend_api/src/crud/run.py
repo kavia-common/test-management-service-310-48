@@ -24,7 +24,7 @@ def get_run(db: Session, run_id: int) -> Optional[Run]:
 
 
 # PUBLIC_INTERFACE
-def get_runs(db: Session, skip: int = 0, limit: int = 100, status: Optional[RunStatus] = None) -> List[Run]:
+def get_runs(db: Session, skip: int = 0, limit: int = 100, status: Optional[RunStatus] = None, group_id: Optional[str] = None) -> List[Run]:
     """
     Get a list of runs, optionally filtered by status.
     
@@ -40,6 +40,8 @@ def get_runs(db: Session, skip: int = 0, limit: int = 100, status: Optional[RunS
     query = db.query(Run)
     if status:
         query = query.filter(Run.status == status)
+    if group_id:
+        query = query.filter(Run.group_id == group_id)
     return query.order_by(Run.created_at.desc()).offset(skip).limit(limit).all()
 
 
@@ -59,6 +61,8 @@ def create_run(db: Session, run: RunCreate) -> Run:
         test_file_id=run.test_file_id,
         testcase_id=run.testcase_id,
         run_config_id=run.run_config_id,
+        group_id=getattr(run, "group_id", None),
+        group_name=getattr(run, "group_name", None),
         status=RunStatus.QUEUED
     )
     db.add(db_run)

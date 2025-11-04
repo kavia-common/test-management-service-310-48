@@ -51,6 +51,10 @@ class Run(Base):
     report_path = Column(String(500), nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Grouping fields
+    group_id = Column(String(255), nullable=True, index=True)
+    group_name = Column(String(255), nullable=True)
     
     # Relationships
     test_file = relationship("TestFile", back_populates="runs")

@@ -12,6 +12,8 @@ class RunBase(BaseModel):
     test_file_id: Optional[int] = Field(None, description="Test file ID (for full file runs)")
     testcase_id: Optional[int] = Field(None, description="Test case ID (for specific testcase runs)")
     run_config_id: Optional[int] = Field(None, description="Run configuration ID")
+    group_id: Optional[str] = Field(None, description="Optional grouping ID for batch executions")
+    group_name: Optional[str] = Field(None, description="Optional grouping display name")
 
 
 class RunCreate(RunBase):
@@ -39,6 +41,8 @@ class RunResponse(BaseModel):
     test_file_id: Optional[int] = Field(None, description="Test file ID")
     testcase_id: Optional[int] = Field(None, description="Test case ID")
     run_config_id: Optional[int] = Field(None, description="Run configuration ID")
+    group_id: Optional[str] = Field(None, description="Grouping ID")
+    group_name: Optional[str] = Field(None, description="Grouping name")
     status: RunStatus = Field(..., description="Run status")
     started_at: Optional[datetime] = Field(None, description="Start timestamp")
     completed_at: Optional[datetime] = Field(None, description="Completion timestamp")

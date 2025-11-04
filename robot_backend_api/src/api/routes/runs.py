@@ -23,6 +23,9 @@ from services.robot_executor import robot_executor
 from services.storage_service import save_run_artifact
 from core.storage import storage_service
 
+# Import group routes to register them under the same prefix/tags
+from . import runs_groups_extension  # noqa: F401
+
 router = APIRouter(prefix="/runs", tags=["Test Runs"])
 
 
@@ -227,7 +230,9 @@ async def run_testcase(
     run_create = RunCreate(
         test_file_id=db_testcase.test_file_id,
         testcase_id=request.testcase_id,
-        run_config_id=request.run_config_id
+        run_config_id=request.run_config_id,
+        group_id=getattr(request, "group_id", None),
+        group_name=getattr(request, "group_name", None)
     )
     db_run = crud_run.create_run(db, run_create)
     
@@ -266,6 +271,7 @@ async def list_runs(
     skip: int = 0,
     limit: int = 100,
     status_filter: Optional[RunStatus] = None,
+    group_id: Optional[str] = None,
     db: Session = Depends(get_db)
 ) -> List[RunResponse]:
     """
@@ -280,7 +286,7 @@ async def list_runs(
     Returns:
         List[RunResponse]: List of runs
     """
-    runs = crud_run.get_runs(db, skip=skip, limit=limit, status=status_filter)
+    runs = crud_run.get_runs(db, skip=skip, limit=limit, status=status_filter, group_id=group_id)
     return runs
 
 
